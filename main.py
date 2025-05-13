@@ -14,7 +14,7 @@ import mimetypes
 import math
 import sys
 
-TARGET_WINDOW_TITLE = "메시지 관리함"
+TARGET_WINDOW_TITLE = ["메시지 관리함", "개의 안읽은 메시지"]
 SAVE_BUTTON_TEXT = "모든파일 저장 (Ctrl+S)"
 SIZE_PATTERN = re.compile(r"\(\d+(?:\.\d+)?\s?(KB|MB|GB)\)$", re.IGNORECASE)
 
@@ -119,12 +119,14 @@ def log(msg):
     timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S.%f]")[:-3]
     print(f"{timestamp} {msg}")
 
-def find_window_by_title_keyword(keyword):
+def find_window_by_title_keyword(keywords):
     result = []
-    def callback(hwnd, _):
-        if keyword in win32gui.GetWindowText(hwnd):
-            result.append(hwnd)
-    win32gui.EnumWindows(callback, None)
+    for keyword in keywords:
+        def callback(hwnd, _):
+            if keyword in win32gui.GetWindowText(hwnd):
+                result.append(hwnd)
+        win32gui.EnumWindows(callback, None)
+
     return result
 
 def find_controls_by_size_pattern(hwnd):
