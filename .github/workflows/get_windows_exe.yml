@@ -1,6 +1,8 @@
 name: Package Application with PyInstaller
 on:
   push:
+    tags:
+      - "v*"
     branches:
       - main
 jobs:
