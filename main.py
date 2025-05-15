@@ -1,6 +1,10 @@
 import win32gui
 import win32con
 import os
+import requests
+import tempfile
+import shutil
+import subprocess
 import time
 import re
 import winreg
@@ -751,20 +755,87 @@ def adaptive_watcher(gui):
             last_seen_texts = current_texts
 
         time.sleep(0.05)
+
 def main():
     gui = FileManagerGUI()
 
     watcher_thread = threading.Thread(target=adaptive_watcher, args=(gui,), daemon=True)
     watcher_thread.start()
-
+        # 자동 업데이트 스레드 (5분 주기)
+    update_thread = threading.Thread(target=check_and_update_loop, daemon=True)
+    update_thread.start()
+    
     gui.window.mainloop()
 
-def get_version():
-    with open("version.txt", encoding="utf-8") as f:
-        return f.read().strip()
 
-__version__ = get_version()
 
+REPO = "banatic/CoolMessenger_download_helper"
+
+def get_local_version():
+    try:
+        with open("version.txt", "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception as e:
+        print(f"[ERROR] Failed to read version.txt: {e}")
+        return None
+
+def get_latest_release_info():
+    url = f"https://api.github.com/repos/{REPO}/releases/latest"
+    r = requests.get(url, timeout=5)
+    r.raise_for_status()
+    return r.json()
+
+def download_and_replace_exe(download_url):
+    exe_path = sys.executable
+    tmp_exe = tempfile.mktemp(suffix=".exe")
+    
+    print("⬇️ Downloading new version...")
+    with requests.get(download_url, stream=True) as res, open(tmp_exe, "wb") as out:
+        shutil.copyfileobj(res.raw, out)
+
+    print("🔄 Preparing replacement script...")
+    bat_path = tmp_exe + ".bat"
+    with open(bat_path, "w", encoding="utf-8") as bat:
+        bat.write(f"""@echo off
+timeout /t 1 >nul
+move /y "{tmp_exe}" "{exe_path}"
+start "" "{exe_path}"
+del "%~f0"
+""")
+
+    subprocess.Popen(["cmd", "/c", bat_path])
+    sys.exit(0)
+
+def check_and_update():
+    local_version = get_local_version()
+    if not local_version:
+        print("⚠️ Cannot determine local version.")
+        return
+
+    try:
+        release = get_latest_release_info()
+        latest_version = release["tag_name"].lstrip("v")
+
+        print(f"🔍 Local version: {local_version}, Latest version: {latest_version}")
+        if latest_version <= local_version:
+            print("✅ Already up to date.")
+            return
+
+        # Get asset URL (assuming .exe file)
+        asset = next(a for a in release["assets"] if a["name"].endswith(".exe"))
+        download_url = asset["browser_download_url"]
+        download_and_replace_exe(download_url)
+
+    except Exception as e:
+        print(f"❌ Update check failed: {e}")
+
+def check_and_update_loop(interval_minutes=5):
+    while True:
+        try:
+            check_and_update()
+        except Exception as e:
+            print(f"[update thread] update check failed: {e}")
+        time.sleep(interval_minutes * 60)
 
 if __name__ == "__main__":
     mimetypes.init()

@@ -40,7 +40,7 @@ jobs:
           pip install pyinstaller
 
       - name: Build app
-        run: pyinstaller --onefile --noconsole main.py
+        run: pyinstaller --onefile --noconsole --add-data "version.txt;." main.py
 
       - name: Create GitHub Release (manual API call)
         shell: bash
