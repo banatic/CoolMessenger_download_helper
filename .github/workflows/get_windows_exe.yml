@@ -11,6 +11,10 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Read version
         id: version
         run: echo "VERSION=$(type version.txt)" >> $env:GITHUB_ENV
@@ -21,10 +25,6 @@ jobs:
           git config user.email "github-actions@github.com"
           git tag v${{ env.VERSION }}
           git push origin v${{ env.VERSION }}
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
 
       - name: Set up Python
         uses: actions/setup-python@v4
