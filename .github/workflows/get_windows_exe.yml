@@ -11,9 +11,20 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
+      - name: Read version
+        id: version
+        run: echo "VERSION=$(type version.txt)" >> $env:GITHUB_ENV
+
+      - name: Tag and Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag v${{ env.VERSION }}
+          git push origin v${{ env.VERSION }}
 
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -31,12 +42,6 @@ jobs:
       - name: Package Application with PyInstaller
         run: |
           pyinstaller --onefile --noconsole main.py
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Windows-exe
-          path: dist/windows.exe
       
       - name: Release build
         uses: softprops/action-gh-release@v2

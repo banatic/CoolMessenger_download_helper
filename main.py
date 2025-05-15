@@ -759,6 +759,13 @@ def main():
 
     gui.window.mainloop()
 
+def get_version():
+    with open("version.txt", encoding="utf-8") as f:
+        return f.read().strip()
+
+__version__ = get_version()
+
+
 if __name__ == "__main__":
     mimetypes.init()
     main()
