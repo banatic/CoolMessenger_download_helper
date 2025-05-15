@@ -1,0 +1,36 @@
+name: Release After Tag
+
+on:
+  workflow_run:
+    workflows: ["Auto Tag"]       # 위 워크플로우 이름과 정확히 일치
+    types:
+      - completed
+
+jobs:
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build
+        run: pyinstaller --onefile --noconsole main.py
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/main.exe
