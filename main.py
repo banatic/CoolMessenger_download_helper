@@ -254,6 +254,7 @@ class HoverButton(tk.Canvas):
         if self.command:
             self.command()
 
+
 class FileItem(tk.Frame):
     def __init__(self, parent, filename, filepath, theme, **kwargs):
         super().__init__(parent, bg=theme.current['bg'], **kwargs)
@@ -285,12 +286,27 @@ class FileItem(tk.Frame):
         info_frame.bind("<Leave>", self._on_leave)
         info_frame.bind("<Double-1>", self._on_double_click)
 
-        self.name_label = tk.Label(info_frame, text=filename, font=("Malgun Gothic", 10), 
-                                  anchor="w", bg=theme.current['bg'], fg=theme.current['fg'])
-        self.name_label.pack(side=tk.TOP, fill=tk.X)
+        # 파일명 표시를 위한 프레임
+        name_frame = tk.Frame(info_frame, bg=theme.current['bg'])
+        name_frame.pack(side=tk.TOP, fill=tk.X)
+        name_frame.bind("<Enter>", self._on_enter)
+        name_frame.bind("<Leave>", self._on_leave)
+        name_frame.bind("<Double-1>", self._on_double_click)
+        
+        # 파일명 표시 레이블 - 줄바꿈 허용 및 넓이 제한
+        self.name_label = tk.Label(name_frame, text=self._truncate_filename(filename, 50), 
+                                  font=("Malgun Gothic", 10), 
+                                  anchor="w", bg=theme.current['bg'], fg=theme.current['fg'],
+                                  wraplength=280)  # 줄바꿈 길이 설정
+        self.name_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.name_label.bind("<Enter>", self._on_enter)
         self.name_label.bind("<Leave>", self._on_leave)
         self.name_label.bind("<Double-1>", self._on_double_click)
+        
+        # 전체 파일명을 툴팁으로 표시하기 위한 바인딩
+        self.tooltip = None
+        self.name_label.bind("<Enter>", self._show_tooltip)
+        self.name_label.bind("<Leave>", self._hide_tooltip)
         
         meta_frame = tk.Frame(info_frame, bg=theme.current['bg'])
         meta_frame.pack(side=tk.TOP, fill=tk.X)
@@ -317,7 +333,47 @@ class FileItem(tk.Frame):
         self.bind("<Enter>", self._on_enter)
         self.bind("<Leave>", self._on_leave)
         self.bind("<Double-1>", self._on_double_click)
+    
+    def _truncate_filename(self, filename, max_length=40):
+        """긴 파일명을 최대 길이로 제한하고 필요시 말줄임표 추가"""
+        if len(filename) <= max_length:
+            return filename
+        half_length = (max_length - 3) // 2
+        return filename[:half_length] + "..." + filename[-half_length:]
+    
+    def _show_tooltip(self, event):
+        """마우스 오버시 전체 파일명 표시"""
+        self._on_enter(event)  # 기존 이벤트 처리
         
+        if len(self.filename) > 40:  # 파일명이 길 경우에만 툴팁 표시
+            x, y = event.x_root, event.y_root
+            
+            # 기존 툴팁 제거
+            self._hide_tooltip(None)
+            
+            # 툴팁 생성
+            self.tooltip = tk.Toplevel(self)
+            self.tooltip.wm_overrideredirect(True)
+            self.tooltip.wm_geometry(f"+{x+10}+{y+10}")
+            
+            tooltip_frame = tk.Frame(self.tooltip, bg=self.theme.current['bg'], 
+                                    borderwidth=1, relief="solid")
+            tooltip_frame.pack(fill=tk.BOTH, expand=True)
+            
+            tooltip_label = tk.Label(tooltip_frame, text=self.filename,
+                                    bg=self.theme.current['bg'],
+                                    fg=self.theme.current['fg'],
+                                    justify=tk.LEFT,
+                                    font=("Malgun Gothic", 9),
+                                    padx=5, pady=2)
+            tooltip_label.pack()
+    
+    def _hide_tooltip(self, event):
+        """툴팁 제거"""
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+    
     def update_file_info(self):
         try:
             if os.path.exists(self.filepath):
@@ -359,6 +415,9 @@ class FileItem(tk.Frame):
                 child.config(bg=self.theme.current['bg'])
                 for subchild in child.winfo_children():
                     subchild.config(bg=self.theme.current['bg'])
+        
+        # 툴팁 제거
+        self._hide_tooltip(None)
     
     def _on_double_click(self, event):
         if os.path.exists(self.filepath):
