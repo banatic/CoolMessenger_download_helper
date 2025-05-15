@@ -18,6 +18,7 @@ import mimetypes
 import math
 import sys
 
+REPO = "banatic/CoolMessenger_download_helper"
 TARGET_WINDOW_TITLE = ["메시지 관리함", "개의 안읽은 메시지"]
 SAVE_BUTTON_TEXT = "모든파일 저장 (Ctrl+S)"
 SIZE_PATTERN = re.compile(r"\(\d+(?:\.\d+)?\s?(KB|MB|GB)\)$", re.IGNORECASE)
@@ -471,6 +472,29 @@ class FileManagerGUI:
 
         self.button_frame = tk.Frame(self.title_frame, bg=self.theme.current['bg'])
         self.button_frame.pack(side=tk.RIGHT, padx=5)
+        
+        # 업데이트 버튼 추가
+        self.update_button = tk.Button(self.button_frame, text="🔄", font=("Malgun Gothic", 9),
+                                      bg=self.theme.current['button_bg'], fg=self.theme.current['button_fg'],
+                                      relief="flat", command=self.check_updates)
+        self.update_button.pack(side=tk.LEFT, padx=(0, 5))
+
+        # 테마 전환 버튼 추가
+        self.theme_button = tk.Button(self.button_frame, text="🌙", font=("Malgun Gothic", 9),
+                                     bg=self.theme.current['button_bg'], fg=self.theme.current['button_fg'],
+                                     relief="flat", command=self.toggle_theme)
+        self.theme_button.pack(side=tk.LEFT, padx=(0, 5))
+
+        # 최소화 버튼 추가
+        self.min_button = tk.Button(self.button_frame, text="—", font=("Malgun Gothic", 9),
+                                   bg=self.theme.current['button_bg'], fg=self.theme.current['button_fg'],
+                                   relief="flat", command=self.window.iconify)
+        self.min_button.pack(side=tk.LEFT, padx=(0, 5))
+
+        # 닫기 버튼 추가
+        self.close_button = tk.Button(self.button_frame, text="✕", font=("Malgun Gothic", 9),
+                                     bg="#D32F2F", fg="white", relief="flat", command=self.window.quit)
+        self.close_button.pack(side=tk.LEFT)
 
         self.separator = ttk.Separator(self.window, orient='horizontal')
         self.separator.pack(fill=tk.X, padx=10)
@@ -507,8 +531,12 @@ class FileManagerGUI:
         self.file_items = []
         
         self.x = 0
-        self.y = 0
-    
+        self.y = 0    
+
+    def check_updates(self):
+        """업데이트 확인 대화상자 표시"""
+        check_and_update_with_gui(self.window)
+
     def update_theme(self):
         self.window.configure(bg=self.theme.current['bg'])
 
@@ -516,9 +544,10 @@ class FileManagerGUI:
         self.title_label.configure(bg=self.theme.current['bg'], fg=self.theme.current['fg'])
         self.button_frame.configure(bg=self.theme.current['bg'])
 
+        self.update_button.configure(bg=self.theme.current['button_bg'], fg=self.theme.current['button_fg'])
         self.theme_button.configure(bg=self.theme.current['button_bg'], fg=self.theme.current['button_fg'])
         self.min_button.configure(bg=self.theme.current['button_bg'], fg=self.theme.current['button_fg'])
-        self.close_button.configure(bg=self.theme.current['button_bg'])
+        self.close_button.configure(bg="#D32F2F", fg="white")
 
         self.container_frame.configure(bg=self.theme.current['bg'])
         self.canvas.configure(bg=self.theme.current['bg'])
@@ -761,52 +790,259 @@ def main():
 
     watcher_thread = threading.Thread(target=adaptive_watcher, args=(gui,), daemon=True)
     watcher_thread.start()
-        # 자동 업데이트 스레드 (5분 주기)
+    
+    # 자동 업데이트 스레드 (5분 주기)
     update_thread = threading.Thread(target=check_and_update_loop, daemon=True)
     update_thread.start()
     
     gui.window.mainloop()
 
+def check_and_update_loop(interval_minutes=5):
+    """주기적으로 업데이트 확인 (백그라운드)"""
+    while True:
+        try:
+            check_and_update()
+        except Exception as e:
+            print(f"[update thread] update check failed: {e}")
+        time.sleep(interval_minutes * 60)
 
 
-REPO = "banatic/CoolMessenger_download_helper"
 
-def get_local_version():
-    try:
-        with open("version.txt", "r", encoding="utf-8") as f:
-            return f.read().strip()
-    except Exception as e:
-        print(f"[ERROR] Failed to read version.txt: {e}")
-        return None
 
-def get_latest_release_info():
-    url = f"https://api.github.com/repos/{REPO}/releases/latest"
-    r = requests.get(url, timeout=5)
-    r.raise_for_status()
-    return r.json()
-
-def download_and_replace_exe(download_url):
-    exe_path = sys.executable
-    tmp_exe = tempfile.mktemp(suffix=".exe")
+class UpdateDialog:
+    def __init__(self, parent):
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("업데이트")
+        self.dialog.geometry("350x200")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(parent)  # 부모 창에 종속
+        self.dialog.grab_set()  # 모달 대화상자로 설정
+        
+        # 대화상자를 화면 중앙에 배치
+        self.center_window()
+        
+        # 폰트 설정
+        title_font = ("Malgun Gothic", 12, "bold")
+        normal_font = ("Malgun Gothic", 10)
+        
+        # 컨테이너 프레임
+        self.main_frame = tk.Frame(self.dialog, padx=20, pady=20)
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 타이틀 라벨
+        self.title_label = tk.Label(self.main_frame, text="쿨메신저 파일 관리 도구 업데이트", font=title_font)
+        self.title_label.pack(pady=(0, 15))
+        
+        # 상태 라벨
+        self.status_frame = tk.Frame(self.main_frame)
+        self.status_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.status_label = tk.Label(self.status_frame, text="업데이트 확인 중...", font=normal_font, anchor="w")
+        self.status_label.pack(fill=tk.X)
+        
+        # 버전 정보 프레임
+        self.version_frame = tk.Frame(self.main_frame)
+        self.version_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        # 진행 상태 바
+        self.progress = ttk.Progressbar(self.main_frame, mode='indeterminate', length=300)
+        self.progress.pack(fill=tk.X, pady=(0, 15))
+        self.progress.start(10)
+        
+        # 버튼 프레임
+        self.button_frame = tk.Frame(self.main_frame)
+        self.button_frame.pack(fill=tk.X)
+        
+        self.cancel_button = tk.Button(self.button_frame, text="취소", command=self.cancel, width=10)
+        self.cancel_button.pack(side=tk.RIGHT)
+        
+        # 취소 플래그
+        self.cancelled = False
+        
+        # 대화 상자가 닫힐 때 취소 플래그 설정
+        self.dialog.protocol("WM_DELETE_WINDOW", self.cancel)
     
-    print("⬇️ Downloading new version...")
-    with requests.get(download_url, stream=True) as res, open(tmp_exe, "wb") as out:
-        shutil.copyfileobj(res.raw, out)
+    def center_window(self):
+        """대화상자를 화면 중앙에 배치"""
+        self.dialog.update_idletasks()
+        
+        # 화면 크기 및 위치 계산
+        screen_width = self.dialog.winfo_screenwidth()
+        screen_height = self.dialog.winfo_screenheight()
+        
+        size = tuple(int(_) for _ in self.dialog.geometry().split('+')[0].split('x'))
+        x = int((screen_width - size[0]) / 2)
+        y = int((screen_height - size[1]) / 2)
+        
+        self.dialog.geometry("+%d+%d" % (x, y))
+    
+    def set_status(self, text):
+        """상태 메시지 업데이트"""
+        self.status_label.config(text=text)
+        self.dialog.update_idletasks()
+    
+    def set_version_info(self, current_version, latest_version):
+        """버전 정보 표시"""
+        for widget in self.version_frame.winfo_children():
+            widget.destroy()
+        
+        tk.Label(self.version_frame, text=f"현재 버전: {current_version}", anchor="w").pack(fill=tk.X)
+        tk.Label(self.version_frame, text=f"최신 버전: {latest_version}", anchor="w").pack(fill=tk.X)
+        self.dialog.update_idletasks()
+    
+    def set_determinate_progress(self, value=0):
+        """진행 상태바를 결정적 모드로 변경하고 값 설정"""
+        self.progress.stop()
+        self.progress.config(mode='determinate', value=value)
+        self.dialog.update_idletasks()
+    
+    def update_progress(self, value):
+        """진행 상태바 값 업데이트"""
+        self.progress.config(value=value)
+        self.dialog.update_idletasks()
+    
+    def complete(self, success=True, message=None):
+        """업데이트 완료 처리"""
+        self.progress.stop()
+        
+        if success:
+            self.set_status(message or "업데이트가 완료되었습니다.")
+            self.cancel_button.config(text="닫기")
+        else:
+            self.set_status(message or "업데이트에 실패했습니다.")
+            self.cancel_button.config(text="닫기")
+    
+    def cancel(self):
+        """취소 처리"""
+        self.cancelled = True
+        self.dialog.destroy()
 
-    print("🔄 Preparing replacement script...")
-    bat_path = tmp_exe + ".bat"
-    with open(bat_path, "w", encoding="utf-8") as bat:
-        bat.write(f"""@echo off
+
+def download_with_progress(url, dest_path, update_dialog=None):
+    """진행 상태를 표시하며 파일 다운로드"""
+    try:
+        with requests.get(url, stream=True) as response:
+            response.raise_for_status()
+            total_size = int(response.headers.get('content-length', 0))
+            
+            if update_dialog:
+                update_dialog.set_determinate_progress(0)
+            
+            with open(dest_path, 'wb') as f:
+                downloaded = 0
+                for chunk in response.iter_content(chunk_size=8192):
+                    if update_dialog and update_dialog.cancelled:
+                        return False
+                    
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        
+                        if update_dialog and total_size:
+                            progress = int((downloaded / total_size) * 100)
+                            update_dialog.update_progress(progress)
+        return True
+    except Exception as e:
+        print(f"다운로드 실패: {e}")
+        return False
+
+
+def check_and_update_with_gui(parent_window):
+    """GUI와 함께 업데이트 확인 및 진행"""
+    update_dialog = UpdateDialog(parent_window)
+    
+    def run_update():
+        try:
+            # 현재 버전 확인
+            local_version = get_local_version()
+            if not local_version:
+                update_dialog.complete(False, "현재 버전을 확인할 수 없습니다.")
+                return
+
+            update_dialog.set_status("최신 버전 확인 중...")
+            
+            # 최신 버전 정보 가져오기
+            try:
+                release = get_latest_release_info()
+                latest_version = release["tag_name"].lstrip("v")
+                
+                update_dialog.set_version_info(local_version, latest_version)
+                
+                # 이미 최신 버전인 경우
+                if latest_version <= local_version:
+                    update_dialog.complete(True, "이미 최신 버전을 사용 중입니다.")
+                    return
+                
+                # 업데이트 필요한 경우 - 다운로드 진행
+                asset = next(a for a in release["assets"] if a["name"].endswith(".exe"))
+                download_url = asset["browser_download_url"]
+                
+                # 사용자에게 업데이트 확인
+                update_dialog.cancel_button.config(text="취소")
+                update_dialog.set_status("업데이트를 다운로드하시겠습니까?")
+                
+                # 다운로드 버튼 추가
+                download_button = tk.Button(
+                    update_dialog.button_frame, 
+                    text="다운로드", 
+                    command=lambda: start_download(download_url)
+                )
+                download_button.pack(side=tk.RIGHT, padx=(0, 10))
+
+            except Exception as e:
+                update_dialog.complete(False, f"업데이트 확인 실패: {e}")
+                return
+        
+        except Exception as e:
+            update_dialog.complete(False, f"오류 발생: {e}")
+    
+    def start_download(download_url):
+        try:
+            # 다운로드 버튼 제거 및 상태 업데이트
+            for widget in update_dialog.button_frame.winfo_children():
+                if widget != update_dialog.cancel_button:
+                    widget.destroy()
+            
+            update_dialog.set_status("업데이트 다운로드 중...")
+            
+            # 임시 경로에 다운로드
+            exe_path = sys.executable
+            tmp_exe = tempfile.mktemp(suffix=".exe")
+            
+            # 진행 상태와 함께 다운로드
+            success = download_with_progress(download_url, tmp_exe, update_dialog)
+            
+            if not success or update_dialog.cancelled:
+                if not update_dialog.cancelled:
+                    update_dialog.complete(False, "다운로드에 실패했습니다.")
+                return
+            
+            update_dialog.set_status("업데이트 설치 준비 중...")
+            
+            # 업데이트 배치 스크립트 생성
+            bat_path = tmp_exe + ".bat"
+            with open(bat_path, "w", encoding="utf-8") as bat:
+                bat.write(f"""@echo off
 timeout /t 1 >nul
 move /y "{tmp_exe}" "{exe_path}"
 start "" "{exe_path}"
 del "%~f0"
 """)
+            
+            update_dialog.set_status("업데이트를 설치하기 위해 프로그램을 재시작합니다...")
+            update_dialog.dialog.after(2000, lambda: subprocess.Popen(["cmd", "/c", bat_path]) and sys.exit(0))
+            
+        except Exception as e:
+            update_dialog.complete(False, f"업데이트 중 오류 발생: {e}")
+    
+    # 별도 스레드에서 업데이트 확인 실행
+    threading.Thread(target=run_update, daemon=True).start()
+    
+    return update_dialog
 
-    subprocess.Popen(["cmd", "/c", bat_path])
-    sys.exit(0)
 
 def check_and_update():
+    """기존 업데이트 함수 - 백그라운드 자동 업데이트용으로 유지"""
     local_version = get_local_version()
     if not local_version:
         print("⚠️ Cannot determine local version.")
@@ -828,14 +1064,6 @@ def check_and_update():
 
     except Exception as e:
         print(f"❌ Update check failed: {e}")
-
-def check_and_update_loop(interval_minutes=5):
-    while True:
-        try:
-            check_and_update()
-        except Exception as e:
-            print(f"[update thread] update check failed: {e}")
-        time.sleep(interval_minutes * 60)
 
 if __name__ == "__main__":
     mimetypes.init()
