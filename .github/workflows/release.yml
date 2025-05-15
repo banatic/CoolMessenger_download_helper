@@ -14,9 +14,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Read version
-        id: version
+      - name: Read version.txt
+        id: read_version
+        shell: bash
         run: echo "VERSION=$(cat version.txt)" >> $GITHUB_ENV
+      
 
       - name: Git tag and push
         run: |
