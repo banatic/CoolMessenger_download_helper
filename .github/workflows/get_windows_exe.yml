@@ -33,3 +33,8 @@ jobs:
         with:
           name: Windows-exe
           path: dist/windows.exe
+      
+      - name: Release build
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/main.exe
