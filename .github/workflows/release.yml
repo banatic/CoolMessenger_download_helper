@@ -1,24 +1,34 @@
-name: Release After Tag
+name: Build, Tag, and Release
 
 on:
-  workflow_run:
-    workflows: ["Auto Tag"]       # 위 워크플로우 이름과 정확히 일치
-    types:
-      - completed
+  workflow_dispatch:  # 수동 실행
+
+permissions:
+  contents: write
 
 jobs:
   release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-latest
-    permissions:
-      contents: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "VERSION=$(cat version.txt)" >> $GITHUB_ENV
+
+      - name: Git tag and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag v${{ env.VERSION }}
+          git push origin v${{ env.VERSION }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install dependencies
         shell: pwsh
@@ -27,10 +37,27 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build
+      - name: Build app
         run: pyinstaller --onefile --noconsole main.py
 
-      - name: Release
+      - name: Create GitHub Release (manual API call)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST https://api.github.com/repos/${{ github.repository }}/releases \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @- <<EOF
+          {
+            "tag_name": "v${{ env.VERSION }}",
+            "name": "v${{ env.VERSION }}",
+            "body": "Auto-generated release for version ${{ env.VERSION }}",
+            "draft": false,
+            "prerelease": false
+          }
+EOF
+
+      - name: Upload EXE to Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/main.exe
