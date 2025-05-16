@@ -1040,7 +1040,39 @@ del "%~f0"
     
     return update_dialog
 
+def get_local_version():
+    try:
+        with open("version.txt", "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception as e:
+        print(f"[ERROR] Failed to read version.txt: {e}")
+        return None
 
+def get_latest_release_info():
+    url = f"https://api.github.com/repos/{REPO}/releases/latest"
+    r = requests.get(url, timeout=5)
+    r.raise_for_status()
+    return r.json()
+
+def download_and_replace_exe(download_url):
+    exe_path = sys.executable
+    tmp_exe = tempfile.mktemp(suffix=".exe")
+    
+    print("⬇️ Downloading new version...")
+    with requests.get(download_url, stream=True) as res, open(tmp_exe, "wb") as out:
+        shutil.copyfileobj(res.raw, out)
+
+    print("🔄 Preparing replacement script...")
+    bat_path = tmp_exe + ".bat"
+    with open(bat_path, "w", encoding="utf-8") as bat:
+        bat.write(f"""@echo off
+timeout /t 1 >nul
+move /y "{tmp_exe}" "{exe_path}"
+start "" "{exe_path}"
+del "%~f0"
+""")
+        
+        
 def check_and_update():
     """기존 업데이트 함수 - 백그라운드 자동 업데이트용으로 유지"""
     local_version = get_local_version()
