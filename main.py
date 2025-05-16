@@ -1089,7 +1089,7 @@ if errorlevel 1 (
 
 timeout /t 3 >nul
 echo Starting updated application...
-start "" "{exe_path}"
+cmd /c start "" "{exe_path}"
 
 :END
 del "{tmp_exe}"
@@ -1109,21 +1109,15 @@ del "%~f0"
     def execute_update_script(bat_path):
         """업데이트 스크립트 실행 및 프로그램 종료"""
         try:
-            # 숨김 창으로 배치 파일 실행
-            if os.name == 'nt':  # Windows
-                subprocess.Popen(["cmd", "/c", bat_path], 
-                                shell=True, 
-                                creationflags=subprocess.CREATE_NO_WINDOW)
-            else:  # 다른 OS
-                subprocess.Popen(["bash", bat_path])
-            
-            # 애플리케이션 종료
+            subprocess.Popen(
+                ["cmd", "/c", bat_path],
+                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS
+            )
             sys.exit(0)
         except Exception as e:
             print(f"스크립트 실행 오류: {e}")
-            # 오류가 발생해도 종료 시도
             sys.exit(1)
-    
+        
     # 별도 스레드에서 업데이트 확인 실행
     threading.Thread(target=run_update, daemon=True).start()
     
