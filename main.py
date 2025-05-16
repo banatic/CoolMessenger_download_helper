@@ -1048,42 +1048,60 @@ def check_and_update_with_gui(parent_window):
             
             # 원본 실행 파일 경로
             exe_path = sys.executable
+            pid = os.getpid()  # 현재 프로세스 ID 저장
             
-            # 업데이트 배치 스크립트 생성 - 더 안전한 방식으로
+            # 업데이트 배치 스크립트 생성 - 개선된 방식
             try:
-                bat_filename = f"update_{os.getpid()}.bat"
+                bat_filename = f"update_{pid}.bat"
                 bat_path = os.path.join(temp_dir, bat_filename)
                 
                 with open(bat_path, "w", encoding="utf-8") as bat:
-                    # 더 견고한 배치 스크립트 작성
+                    # 개선된 배치 스크립트 작성
                     bat.write(f"""@echo off
-    echo Waiting for application to close...
+echo Waiting for application to close (PID: {pid})...
+timeout /t 2 >nul
+
+:: PID로 프로세스 확인 - 더 정확함
+:CHECK_PROCESS
+tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
+if not errorlevel 1 (
+    echo Process still running, waiting...
+    timeout /t 1 >nul
+    goto CHECK_PROCESS
+)
+
+echo Process closed, waiting a bit more for file handles to be released...
+timeout /t 3 >nul
+
+echo Replacing application file...
+set attempts=0
+
+:COPY_ATTEMPT
+set /a attempts+=1
+if %attempts% GTR 5 (
+    echo Failed to replace application file after 5 attempts.
+    pause
+    goto END
+)
+
+echo Attempt %attempts% of 5...
+copy /y "{tmp_exe}" "{exe_path}" >nul 2>&1
+if errorlevel 1 (
+    echo Copy failed, waiting before retry...
     timeout /t 2 >nul
-    echo Updating application...
+    goto COPY_ATTEMPT
+)
 
-    :LOOP
-    tasklist | find /i "{os.path.basename(exe_path)}" >nul
-    if not errorlevel 1 (
-        timeout /t 2 >nul
-        goto LOOP
-    )
+echo Application updated successfully!
+timeout /t 1 >nul
 
-    echo Replacing application file...
-    copy /y "{tmp_exe}" "{exe_path}"
-    if errorlevel 1 (
-        echo Update failed! Error code: %errorlevel%
-        pause
-        goto END
-    )
+echo Starting updated application...
+start "" /b "{exe_path}"
 
-    timeout /t 3 >nul
-    echo Starting updated application...
-    start "" /b "{exe_path}"
-
-    :END
-    del "{tmp_exe}"
-    del "%~f0"
-    """)
+:END
+del "{tmp_exe}" >nul 2>&1
+del "%~f0" >nul 2>&1
+""")
                 
                 update_dialog.set_status("업데이트를 설치하기 위해 프로그램을 재시작합니다...")
                 # 2초 후 배치 파일 실행 및 프로그램 종료
@@ -1109,6 +1127,13 @@ def check_and_update_with_gui(parent_window):
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 startupinfo.wShowWindow = 0  # SW_HIDE
                 
+                # 배치 파일 실행권한 확인 및 처리
+                try:
+                    # 배치 파일에 실행 권한 부여 시도
+                    os.chmod(bat_path, 0o755)
+                except Exception:
+                    pass  # Windows에서는 필요 없을 수 있음
+                
                 subprocess.Popen(
                     ["cmd", "/c", bat_path],
                     close_fds=True,
@@ -1120,6 +1145,9 @@ def check_and_update_with_gui(parent_window):
                     stderr=subprocess.DEVNULL
                 )
             else:  # 다른 OS
+                # 배치 파일에 실행 권한 부여
+                os.chmod(bat_path, 0o755)
+                
                 subprocess.Popen(
                     ["bash", bat_path],
                     close_fds=True,
@@ -1129,6 +1157,10 @@ def check_and_update_with_gui(parent_window):
                     stderr=subprocess.DEVNULL
                 )
             
+            # 애플리케이션 즉시 종료 전에 로그 기록
+            print(f"업데이트 스크립트 실행 시작: {bat_path}")
+            # 조금 대기 후 종료 (배치 파일이 제대로 시작되도록)
+            time.sleep(0.5)
             # 애플리케이션 즉시 종료
             os._exit(0)  # sys.exit 대신 os._exit 사용하여 즉시 종료
         except Exception as e:
@@ -1140,7 +1172,6 @@ def check_and_update_with_gui(parent_window):
     threading.Thread(target=run_update, daemon=True).start()
 
     return update_dialog
-
 
 def check_and_update():
     """기존 업데이트 함수 - 백그라운드 자동 업데이트용으로 유지"""
