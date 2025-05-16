@@ -1009,91 +1009,136 @@ def check_and_update_with_gui(parent_window):
 
     def start_download(download_url):
         try:
+            # 다운로드 버튼 제거 및 상태 업데이트
             for widget in update_dialog.button_frame.winfo_children():
                 if widget != update_dialog.cancel_button:
                     widget.destroy()
-
+            
             update_dialog.set_status("업데이트 다운로드 중...")
-
+            
+            # 안전한 임시 파일 경로 생성
             try:
+                # 임시 디렉토리에 고유한 파일명으로 생성
                 temp_dir = tempfile.gettempdir()
                 exe_filename = os.path.basename(sys.executable)
                 tmp_exe = os.path.join(temp_dir, f"update_{exe_filename}")
+                
+                # 파일이 이미 있다면 삭제
                 if os.path.exists(tmp_exe):
                     os.remove(tmp_exe)
             except Exception as e:
                 update_dialog.complete(False, f"임시 파일 생성 실패: {str(e)}")
                 return
-
+            
+            # 진행 상태와 함께 다운로드
             success = download_with_progress(download_url, tmp_exe, update_dialog)
-
+            
             if not success or update_dialog.cancelled:
                 if not update_dialog.cancelled:
                     update_dialog.complete(False, "다운로드에 실패했습니다.")
+                # 임시 파일 정리
                 if os.path.exists(tmp_exe):
                     try:
                         os.remove(tmp_exe)
                     except:
                         pass
                 return
-
+            
             update_dialog.set_status("업데이트 설치 준비 중...")
-
+            
+            # 원본 실행 파일 경로
             exe_path = sys.executable
+            
+            # 업데이트 배치 스크립트 생성 - 더 안전한 방식으로
             try:
                 bat_filename = f"update_{os.getpid()}.bat"
                 bat_path = os.path.join(temp_dir, bat_filename)
-
+                
                 with open(bat_path, "w", encoding="utf-8") as bat:
+                    # 더 견고한 배치 스크립트 작성
                     bat.write(f"""@echo off
-echo Waiting for application to close...
-timeout /t 2 >nul
-
-:LOOP
-tasklist | find /i "{os.path.basename(exe_path)}" >nul
-if not errorlevel 1 (
+    echo Waiting for application to close...
     timeout /t 2 >nul
-    goto LOOP
-)
+    echo Updating application...
 
-echo Replacing application file...
-copy /y "{tmp_exe}" "{exe_path}"
-if errorlevel 1 (
-    echo Update failed! Error code: %errorlevel%
-    pause
-    goto END
-)
+    :LOOP
+    tasklist | find /i "{os.path.basename(exe_path)}" >nul
+    if not errorlevel 1 (
+        timeout /t 2 >nul
+        goto LOOP
+    )
 
-timeout /t 5 >nul
-echo Starting updated application...
-cmd /c start "" "{exe_path}"
+    echo Replacing application file...
+    copy /y "{tmp_exe}" "{exe_path}"
+    if errorlevel 1 (
+        echo Update failed! Error code: %errorlevel%
+        pause
+        goto END
+    )
 
-:END
-del "{tmp_exe}"
-del "%~f0"
-""")
+    timeout /t 3 >nul
+    echo Starting updated application...
+    start "" /b "{exe_path}"
 
+    :END
+    del "{tmp_exe}"
+    del "%~f0"
+    """)
+                
                 update_dialog.set_status("업데이트를 설치하기 위해 프로그램을 재시작합니다...")
+                # 2초 후 배치 파일 실행 및 프로그램 종료
                 update_dialog.dialog.after(2000, lambda: execute_update_script(bat_path))
-
+                
             except Exception as e:
                 update_dialog.complete(False, f"업데이트 스크립트 생성 실패: {str(e)}")
-
+                
         except Exception as e:
             update_dialog.complete(False, f"업데이트 중 오류 발생: {str(e)}")
 
     def execute_update_script(bat_path):
+        """업데이트 스크립트 실행 및 프로그램 종료"""
         try:
-            subprocess.Popen(
-                ["cmd", "/c", bat_path],
-                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS
-            )
-            sys.exit(0)
+            # 완전히 분리된 프로세스로 배치 파일 실행
+            if os.name == 'nt':  # Windows
+                # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS 플래그 사용
+                DETACHED_PROCESS = 0x00000008
+                CREATE_NEW_PROCESS_GROUP = 0x00000200
+                CREATE_BREAKAWAY_FROM_JOB = 0x01000000  # 중요: 작업 개체에서 분리
+                
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0  # SW_HIDE
+                
+                subprocess.Popen(
+                    ["cmd", "/c", bat_path],
+                    close_fds=True,
+                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB,
+                    startupinfo=startupinfo,
+                    shell=False,  # shell=False가 중요함
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            else:  # 다른 OS
+                subprocess.Popen(
+                    ["bash", bat_path],
+                    close_fds=True,
+                    start_new_session=True,  # Linux/Unix에서 새 세션 시작
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            
+            # 애플리케이션 즉시 종료
+            os._exit(0)  # sys.exit 대신 os._exit 사용하여 즉시 종료
         except Exception as e:
             print(f"스크립트 실행 오류: {e}")
-            sys.exit(1)
+            # 오류가 발생해도 종료 시도
+            os._exit(1)
 
+    # 별도 스레드에서 업데이트 확인 실행
     threading.Thread(target=run_update, daemon=True).start()
+
     return update_dialog
 
 
