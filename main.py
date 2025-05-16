@@ -1007,7 +1007,6 @@ def check_and_update_with_gui(parent_window):
 
         except Exception as e:
             update_dialog.complete(False, f"오류 발생: {str(e)}")
-
     def start_download(download_url):
         update_dialog.set_status("업데이트 다운로드 중...")
         
@@ -1043,28 +1042,39 @@ def check_and_update_with_gui(parent_window):
         
         # 원본 실행 파일 경로
         exe_path = sys.executable
-                # Get the path of the current executable
         current_pid = os.getpid()
-            # Create a temporary batch file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.bat') as f:
-            batch_file = f.name
         
-        # Write commands to the batch file
-        with open(batch_file, 'w') as f:
+        # Create a temporary batch file
+        batch_fd, batch_file = tempfile.mkstemp(suffix='.bat')
+        os.close(batch_fd)
+        
+        # Write commands to the batch file with improved process handling
+        with open(batch_file, 'w', encoding='utf-8') as f:
             f.write(f'''@echo off
     echo Waiting for application to close...
     taskkill /F /PID {current_pid} > nul 2>&1
     timeout /t 2 /nobreak > nul
     echo Updating application...
     copy /Y "{tmp_exe}" "{exe_path}"
-    echo Starting new version...
-    start "" "{exe_path}"
+    echo Starting new version with complete isolation...
+    start "" /B /wait cmd /c "timeout /t 1 /nobreak > nul && start "" /B "{exe_path}""
+    del "{tmp_exe}" > nul 2>&1
     del "%~f0"
     ''')
         
-        # Execute the batch file and attempt to exit forcefully
-        subprocess.Popen(batch_file, shell=True)
-        os._exit(0)  # More forceful than sys.exit()
+        # Execute the batch file with all isolation flags
+        creation_flags = 0x00000200 | 0x00000008 | 0x01000000  # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB
+        
+        subprocess.Popen(
+            batch_file,
+            shell=True,
+            creationflags=creation_flags,
+            close_fds=True,
+            start_new_session=True
+        )
+        
+        # Force exit the current process
+        os._exit(0)
 
 
     # 별도 스레드에서 업데이트 확인 실행
