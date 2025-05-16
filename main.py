@@ -830,7 +830,7 @@ class UpdateDialog:
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
         # 타이틀 라벨
-        self.title_label = tk.Label(self.main_frame, text="쿨메신저 파일 관리 도구 업데이트", font=title_font)
+        self.title_label = tk.Label(self.main_frame, text="업데이트 도구구", font=title_font)
         self.title_label.pack(pady=(0, 15))
         
         # 상태 라벨
