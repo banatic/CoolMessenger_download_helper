@@ -18,6 +18,7 @@ import mimetypes
 import math
 import sys
 
+
 REPO = "banatic/CoolMessenger_download_helper"
 TARGET_WINDOW_TITLE = ["메시지 관리함", "개의 안읽은 메시지"]
 SAVE_BUTTON_TEXT = "모든파일 저장 (Ctrl+S)"
@@ -1008,163 +1009,65 @@ def check_and_update_with_gui(parent_window):
             update_dialog.complete(False, f"오류 발생: {str(e)}")
 
     def start_download(download_url):
+        update_dialog.set_status("업데이트 다운로드 중...")
+        
+        # 안전한 임시 파일 경로 생성
         try:
-            # 다운로드 버튼 제거 및 상태 업데이트
-            for widget in update_dialog.button_frame.winfo_children():
-                if widget != update_dialog.cancel_button:
-                    widget.destroy()
+            # 임시 디렉토리에 고유한 파일명으로 생성
+            temp_dir = tempfile.gettempdir()
+            exe_filename = os.path.basename(sys.executable)
+            tmp_exe = os.path.join(temp_dir, f"update_{exe_filename}")
             
-            update_dialog.set_status("업데이트 다운로드 중...")
-            
-            # 안전한 임시 파일 경로 생성
-            try:
-                # 임시 디렉토리에 고유한 파일명으로 생성
-                temp_dir = tempfile.gettempdir()
-                exe_filename = os.path.basename(sys.executable)
-                tmp_exe = os.path.join(temp_dir, f"update_{exe_filename}")
-                
-                # 파일이 이미 있다면 삭제
-                if os.path.exists(tmp_exe):
-                    os.remove(tmp_exe)
-            except Exception as e:
-                update_dialog.complete(False, f"임시 파일 생성 실패: {str(e)}")
-                return
-            
-            # 진행 상태와 함께 다운로드
-            success = download_with_progress(download_url, tmp_exe, update_dialog)
-            
-            if not success or update_dialog.cancelled:
-                if not update_dialog.cancelled:
-                    update_dialog.complete(False, "다운로드에 실패했습니다.")
-                # 임시 파일 정리
-                if os.path.exists(tmp_exe):
-                    try:
-                        os.remove(tmp_exe)
-                    except:
-                        pass
-                return
-            
-            update_dialog.set_status("업데이트 설치 준비 중...")
-            
-            # 원본 실행 파일 경로
-            exe_path = sys.executable
-            pid = os.getpid()  # 현재 프로세스 ID 저장
-            
-            # 업데이트 배치 스크립트 생성 - 개선된 방식
-            try:
-                bat_filename = f"update_{pid}.bat"
-                bat_path = os.path.join(temp_dir, bat_filename)
-                
-                with open(bat_path, "w", encoding="utf-8") as bat:
-                    # 개선된 배치 스크립트 작성
-                    bat.write(f"""@echo off
-echo Waiting for application to close (PID: {pid})...
-timeout /t 2 >nul
-
-:: PID로 프로세스 확인 - 더 정확함
-tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
-if not errorlevel 1 (
-    echo Process still running, waiting...
-    timeout /t 1 >nul
-)
-
-echo Process closed, waiting a bit more for file handles to be released...
-timeout /t 3 >nul
-
-echo Replacing application file...
-set attempts=0
-
-:COPY_ATTEMPT
-set /a attempts+=1
-if %attempts% GTR 5 (
-    echo Failed to replace application file after 5 attempts.
-    pause
-    goto END
-)
-
-echo Attempt %attempts% of 5...
-copy /y "{tmp_exe}" "{exe_path}" >nul 2>&1
-if errorlevel 1 (
-    echo Copy failed, waiting before retry...
-    timeout /t 2 >nul
-    goto COPY_ATTEMPT
-)
-
-echo Application updated successfully!
-timeout /t 1 >nul
-
-echo Starting updated application...
-start "" /b "{exe_path}"
-
-:END
-del "{tmp_exe}" >nul 2>&1
-del "%~f0" >nul 2>&1
-""")
-                
-                update_dialog.set_status("업데이트를 설치하기 위해 프로그램을 재시작합니다...")
-                # 2초 후 배치 파일 실행 및 프로그램 종료
-                update_dialog.dialog.after(2000, lambda: execute_update_script(bat_path))
-                
-            except Exception as e:
-                update_dialog.complete(False, f"업데이트 스크립트 생성 실패: {str(e)}")
-                
+            # 파일이 이미 있다면 삭제
+            if os.path.exists(tmp_exe):
+                os.remove(tmp_exe)
         except Exception as e:
-            update_dialog.complete(False, f"업데이트 중 오류 발생: {str(e)}")
-
-    def execute_update_script(bat_path):
-        """업데이트 스크립트 실행 및 프로그램 종료"""
-        try:
-            # 완전히 분리된 프로세스로 배치 파일 실행
-            if os.name == 'nt':  # Windows
-                # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS 플래그 사용
-                DETACHED_PROCESS = 0x00000008
-                CREATE_NEW_PROCESS_GROUP = 0x00000200
-                CREATE_BREAKAWAY_FROM_JOB = 0x01000000  # 중요: 작업 개체에서 분리
-                
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                startupinfo.wShowWindow = 0  # SW_HIDE
-                
-                # 배치 파일 실행권한 확인 및 처리
+            update_dialog.complete(False, f"임시 파일 생성 실패: {str(e)}")
+            return
+        
+        # 진행 상태와 함께 다운로드
+        success = download_with_progress(download_url, tmp_exe, update_dialog)
+        
+        if not success or update_dialog.cancelled:
+            if not update_dialog.cancelled:
+                update_dialog.complete(False, "다운로드에 실패했습니다.")
+            # 임시 파일 정리
+            if os.path.exists(tmp_exe):
                 try:
-                    # 배치 파일에 실행 권한 부여 시도
-                    os.chmod(bat_path, 0o755)
-                except Exception:
-                    pass  # Windows에서는 필요 없을 수 있음
-                
-                subprocess.Popen(
-                    ["cmd", "/c", bat_path],
-                    close_fds=True,
-                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB,
-                    startupinfo=startupinfo,
-                    shell=False,  # shell=False가 중요함
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-            else:  # 다른 OS
-                # 배치 파일에 실행 권한 부여
-                os.chmod(bat_path, 0o755)
-                
-                subprocess.Popen(
-                    ["bash", bat_path],
-                    close_fds=True,
-                    start_new_session=True,  # Linux/Unix에서 새 세션 시작
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-            
-            # 애플리케이션 즉시 종료 전에 로그 기록
-            print(f"업데이트 스크립트 실행 시작: {bat_path}")
-            # 조금 대기 후 종료 (배치 파일이 제대로 시작되도록)
-            time.sleep(0.5)
-            # 애플리케이션 즉시 종료
-            os._exit(0)  # sys.exit 대신 os._exit 사용하여 즉시 종료
-        except Exception as e:
-            print(f"스크립트 실행 오류: {e}")
-            # 오류가 발생해도 종료 시도
-            os._exit(1)
+                    os.remove(tmp_exe)
+                except:
+                    pass
+            return
+        
+        update_dialog.set_status("업데이트 설치 준비 중...")
+        
+        # 원본 실행 파일 경로
+        exe_path = sys.executable
+        
+        # 업데이트 배치 스크립트 생성 - 개선된 방식
+        temp_dir = tempfile.gettempdir()
+        batch1_path = os.path.join(temp_dir, "batch1.bat")
+        batch2_path = os.path.join(temp_dir, "batch2.bat")
+
+            # batch2.bat 내용 생성
+        with open(batch2_path, "w", encoding="utf-8") as f:
+            f.write(f"""@echo off
+        timeout /t 2 /nobreak >nul
+        del "{exe_path}" /f /q
+        copy "{tmp_exe}" "{exe_path}" /Y
+        start "" "{exe_path}"
+        """)
+
+            # batch1.bat 내용 생성
+        with open(batch1_path, "w", encoding="utf-8") as f:
+            f.write(f"""@echo off
+        timeout /t 1 /nobreak >nul
+        start "" "{batch2_path}"
+        """)
+
+        # batch1 실행 후 현재 프로세스 종료
+        subprocess.Popen([batch1_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        sys.exit()
 
     # 별도 스레드에서 업데이트 확인 실행
     threading.Thread(target=run_update, daemon=True).start()
