@@ -1087,6 +1087,7 @@ if errorlevel 1 (
     goto END
 )
 
+timeout /t 5 >nul
 echo Starting updated application...
 start "" "{exe_path}"
 
