@@ -1043,26 +1043,30 @@ def check_and_update_with_gui(parent_window):
         
         # 원본 실행 파일 경로
         exe_path = sys.executable
+                # Get the path of the current executable
         
-        # 업데이트 배치 스크립트 생성 - 개선된 방식
-        temp_dir = tempfile.gettempdir()
-        batch_path = os.path.join(temp_dir, "update_runner.bat")
-
-        with open(batch_path, "w", encoding="utf-8") as f:
-            f.write(f"""@echo off
-    :waitloop
-    tasklist | findstr /I "{os.path.basename(exe_path)}" >nul
-    if not errorlevel 1 (
-        timeout /t 1 >nul
-        goto waitloop
-    )
-    del "{exe_path}" /f /q
-    copy "{tmp_exe}" "{exe_path}" /Y
+        # Create a temporary batch file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.bat') as f:
+            batch_file = f.name
+            
+        # Write commands to the batch file
+        with open(batch_file, 'w') as f:
+            f.write(f'''@echo off
+    echo Waiting for application to close...
+    timeout /t 2 /nobreak > nul
+    echo Updating application...
+    copy /Y "{tmp_exe}" "{exe_path}"
+    echo Starting new version...
     start "" "{exe_path}"
-    """)
-
-        subprocess.Popen([batch_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+    del "%~f0"
+    ''')
+        
+        # Execute the batch file and exit the current application
+        subprocess.Popen(batch_file, shell=True)
+        sys.exit(0)
+        # 현재 프로세스 종료
         sys.exit()
+
 
     # 별도 스레드에서 업데이트 확인 실행
     threading.Thread(target=run_update, daemon=True).start()
