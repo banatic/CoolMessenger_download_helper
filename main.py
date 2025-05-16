@@ -1044,15 +1044,16 @@ def check_and_update_with_gui(parent_window):
         # 원본 실행 파일 경로
         exe_path = sys.executable
                 # Get the path of the current executable
-        
-        # Create a temporary batch file
+        current_pid = os.getpid()
+            # Create a temporary batch file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.bat') as f:
             batch_file = f.name
-            
+        
         # Write commands to the batch file
         with open(batch_file, 'w') as f:
             f.write(f'''@echo off
     echo Waiting for application to close...
+    taskkill /F /PID {current_pid} > nul 2>&1
     timeout /t 2 /nobreak > nul
     echo Updating application...
     copy /Y "{tmp_exe}" "{exe_path}"
@@ -1061,11 +1062,9 @@ def check_and_update_with_gui(parent_window):
     del "%~f0"
     ''')
         
-        # Execute the batch file and exit the current application
+        # Execute the batch file and attempt to exit forcefully
         subprocess.Popen(batch_file, shell=True)
-        sys.exit(0)
-        # 현재 프로세스 종료
-        sys.exit()
+        os._exit(0)  # More forceful than sys.exit()
 
 
     # 별도 스레드에서 업데이트 확인 실행
