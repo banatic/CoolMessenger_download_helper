@@ -1040,9 +1040,20 @@ del "%~f0"
     
     return update_dialog
 
+def get_resource_path(relative_path):
+    """Get the absolute path to a resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 def get_local_version():
     try:
-        with open("version.txt", "r", encoding="utf-8") as f:
+        version_file_path = get_resource_path("version.txt")
+        with open(version_file_path, "r", encoding="utf-8") as f:
             return f.read().strip()
     except Exception as e:
         print(f"[ERROR] Failed to read version.txt: {e}")
@@ -1072,7 +1083,7 @@ start "" "{exe_path}"
 del "%~f0"
 """)
         
-        
+
 def check_and_update():
     """기존 업데이트 함수 - 백그라운드 자동 업데이트용으로 유지"""
     local_version = get_local_version()
