@@ -1062,12 +1062,10 @@ echo Waiting for application to close (PID: {pid})...
 timeout /t 2 >nul
 
 :: PID로 프로세스 확인 - 더 정확함
-:CHECK_PROCESS
 tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
 if not errorlevel 1 (
     echo Process still running, waiting...
     timeout /t 1 >nul
-    goto CHECK_PROCESS
 )
 
 echo Process closed, waiting a bit more for file handles to be released...
