@@ -1024,7 +1024,7 @@ del "%~f0"
 """)
             
             update_dialog.set_status("업데이트를 설치하기 위해 프로그램을 재시작합니다...")
-            update_dialog.dialog.after(2000, lambda: subprocess.Popen(["cmd", "/c", bat_path]) and sys.exit(0))
+            update_dialog.dialog.after(2000, lambda: subprocess.Popen(["cmd", "/c", bat_path], shell=True) and sys.exit(0))
             
         except Exception as e:
             update_dialog.complete(False, f"업데이트 중 오류 발생: {e}")
@@ -1061,7 +1061,8 @@ def get_latest_release_info():
 
 def download_and_replace_exe(download_url):
     exe_path = sys.executable
-    tmp_exe = tempfile.mktemp(suffix=".exe")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".exe") as tmp:
+        tmp_exe = tmp.name
     
     print("⬇️ Downloading new version...")
     with requests.get(download_url, stream=True) as res, open(tmp_exe, "wb") as out:
@@ -1072,8 +1073,10 @@ def download_and_replace_exe(download_url):
     with open(bat_path, "w", encoding="utf-8") as bat:
         bat.write(f"""@echo off
 timeout /t 1 >nul
+rename "{exe_path}" "old.exe"
 move /y "{tmp_exe}" "{exe_path}"
 start "" "{exe_path}"
+del old.exe
 del "%~f0"
 """)
         
