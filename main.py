@@ -1043,37 +1043,56 @@ def check_and_update_with_gui(parent_window):
         # 원본 실행 파일 경로
         exe_path = sys.executable
         current_pid = os.getpid()
+        import uuid
         
-        # Create a temporary batch file
-        batch_fd, batch_file = tempfile.mkstemp(suffix='.bat')
-        os.close(batch_fd)
+        # Generate a unique task name to avoid conflicts
+        task_name = f"AppUpdate_{uuid.uuid4().hex[:8]}"
         
-        # Write commands to the batch file with improved process handling
+        # Create a batch file for the update process
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.bat') as f:
+            batch_file = f.name
+        
+        # Get current time and add 1 minute to ensure the task runs immediately
+        current_time = time.localtime()
+        minute = (current_time.tm_min + 1) % 60
+        hour = current_time.tm_hour + ((current_time.tm_min + 1) // 60)
+        hour = hour % 24
+        
+        scheduled_time = f"{hour:02d}:{minute:02d}"
+        
         with open(batch_file, 'w', encoding='utf-8') as f:
             f.write(f'''@echo off
-    echo Waiting for application to close...
+    echo Waiting for application to exit...
     taskkill /F /PID {current_pid} > nul 2>&1
-    timeout /t 2 /nobreak > nul
+    timeout /t 5 /nobreak > nul
+
     echo Updating application...
-    copy /Y "{tmp_exe}" "{exe_path}"
-    echo Starting new version with complete isolation...
-    start "" /B /wait cmd /c "timeout /t 1 /nobreak > nul && start "" /B "{exe_path}""
+    copy /Y "{tmp_exe}" "{exe_path}" > nul
+
+    echo Starting updated application...
+    start "" "{exe_path}"
+
+    echo Cleaning up...
+    schtasks /Delete /TN "{task_name}" /F > nul 2>&1
     del "{tmp_exe}" > nul 2>&1
     del "%~f0"
     ''')
         
-        # Execute the batch file with all isolation flags
-        creation_flags = 0x00000200 | 0x00000008 | 0x01000000  # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB
+        # Create a Windows scheduled task to run at the next minute
+        # The /RU "SYSTEM" runs the task with SYSTEM privileges, which can help avoid some permission issues
+        cmd = f'schtasks /Create /TN "{task_name}" /TR "{batch_file}" /SC ONCE /ST {scheduled_time} /RU "SYSTEM" /F'
+        subprocess.run(cmd, shell=True, check=True)
         
-        subprocess.Popen(
-            batch_file,
-            shell=True,
-            creationflags=creation_flags,
-            close_fds=True,
-            start_new_session=True
-        )
+        # Force the task to run now instead of waiting for the scheduled time
+        subprocess.Popen(f'schtasks /Run /TN "{task_name}"', shell=True)
         
-        # Force exit the current process
+        # Display update message
+        update_dialog.set_status("업데이트가 진행 중입니다. 프로그램이 곧 재시작됩니다...")
+        
+        # Give the task scheduler a moment to register the task
+        time.sleep(1)
+        
+        # Exit the application
         os._exit(0)
 
 
