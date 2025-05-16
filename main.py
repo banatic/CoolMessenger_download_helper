@@ -830,7 +830,7 @@ class UpdateDialog:
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
         # 타이틀 라벨
-        self.title_label = tk.Label(self.main_frame, text="업데이트 도구구", font=title_font)
+        self.title_label = tk.Label(self.main_frame, text="업데이트 도구", font=title_font)
         self.title_label.pack(pady=(0, 15))
         
         # 상태 라벨
@@ -979,15 +979,9 @@ def check_and_update_with_gui(parent_window):
                 
                 # 사용자에게 업데이트 확인
                 update_dialog.cancel_button.config(text="취소")
-                update_dialog.set_status("업데이트를 다운로드하시겠습니까?")
+                update_dialog.set_status("업데이트를 시작")
                 
-                # 다운로드 버튼 추가
-                download_button = tk.Button(
-                    update_dialog.button_frame, 
-                    text="다운로드", 
-                    command=lambda: start_download(download_url)
-                )
-                download_button.pack(side=tk.RIGHT, padx=(0, 10))
+                start_download(download_url)
 
             except Exception as e:
                 update_dialog.complete(False, f"업데이트 확인 실패: {e}")
