@@ -970,107 +970,84 @@ def get_latest_release_info():
     r.raise_for_status()
     return r.json()
 
-
 def check_and_update_with_gui(parent_window):
     """GUI와 함께 업데이트 확인 및 진행"""
     update_dialog = UpdateDialog(parent_window)
-    
+
     def run_update():
         try:
-            # 현재 버전 확인
             local_version = get_local_version()
             if not local_version:
                 update_dialog.complete(False, "현재 버전을 확인할 수 없습니다.")
                 return
 
             update_dialog.set_status("최신 버전 확인 중...")
-            
-            # 최신 버전 정보 가져오기
+
             try:
                 release = get_latest_release_info()
                 latest_version = release["tag_name"].lstrip("v")
-                
                 update_dialog.set_version_info(local_version, latest_version)
-                
-                # 이미 최신 버전인 경우
+
                 if latest_version <= local_version:
                     update_dialog.complete(True, "이미 최신 버전을 사용 중입니다.")
                     return
-                
-                # 업데이트 필요한 경우 - 다운로드 진행
+
                 try:
                     asset = next(a for a in release["assets"] if a["name"].endswith(".exe"))
                     download_url = asset["browser_download_url"]
-                    
-                    # 사용자에게 업데이트 확인
                     update_dialog.cancel_button.config(text="취소")
                     update_dialog.set_status("업데이트를 시작합니다")
-                    
-                    # 다운로드 시작
                     start_download(download_url)
                 except StopIteration:
                     update_dialog.complete(False, "다운로드 파일을 찾을 수 없습니다.")
-
             except Exception as e:
                 update_dialog.complete(False, f"업데이트 확인 실패: {str(e)}")
                 return
-        
+
         except Exception as e:
             update_dialog.complete(False, f"오류 발생: {str(e)}")
-    
+
     def start_download(download_url):
         try:
-            # 다운로드 버튼 제거 및 상태 업데이트
             for widget in update_dialog.button_frame.winfo_children():
                 if widget != update_dialog.cancel_button:
                     widget.destroy()
-            
+
             update_dialog.set_status("업데이트 다운로드 중...")
-            
-            # 안전한 임시 파일 경로 생성
+
             try:
-                # 임시 디렉토리에 고유한 파일명으로 생성
                 temp_dir = tempfile.gettempdir()
                 exe_filename = os.path.basename(sys.executable)
                 tmp_exe = os.path.join(temp_dir, f"update_{exe_filename}")
-                
-                # 파일이 이미 있다면 삭제
                 if os.path.exists(tmp_exe):
                     os.remove(tmp_exe)
             except Exception as e:
                 update_dialog.complete(False, f"임시 파일 생성 실패: {str(e)}")
                 return
-            
-            # 진행 상태와 함께 다운로드
+
             success = download_with_progress(download_url, tmp_exe, update_dialog)
-            
+
             if not success or update_dialog.cancelled:
                 if not update_dialog.cancelled:
                     update_dialog.complete(False, "다운로드에 실패했습니다.")
-                # 임시 파일 정리
                 if os.path.exists(tmp_exe):
                     try:
                         os.remove(tmp_exe)
                     except:
                         pass
                 return
-            
+
             update_dialog.set_status("업데이트 설치 준비 중...")
-            
-            # 원본 실행 파일 경로
+
             exe_path = sys.executable
-            
-            # 업데이트 배치 스크립트 생성 - 더 안전한 방식으로
             try:
                 bat_filename = f"update_{os.getpid()}.bat"
                 bat_path = os.path.join(temp_dir, bat_filename)
-                
+
                 with open(bat_path, "w", encoding="utf-8") as bat:
-                    # 더 견고한 배치 스크립트 작성
                     bat.write(f"""@echo off
 echo Waiting for application to close...
 timeout /t 2 >nul
-echo Updating application...
 
 :LOOP
 tasklist | find /i "{os.path.basename(exe_path)}" >nul
@@ -1087,7 +1064,7 @@ if errorlevel 1 (
     goto END
 )
 
-timeout /t 3 >nul
+timeout /t 5 >nul
 echo Starting updated application...
 cmd /c start "" "{exe_path}"
 
@@ -1095,19 +1072,17 @@ cmd /c start "" "{exe_path}"
 del "{tmp_exe}"
 del "%~f0"
 """)
-                
+
                 update_dialog.set_status("업데이트를 설치하기 위해 프로그램을 재시작합니다...")
-                # 2초 후 배치 파일 실행 및 프로그램 종료
                 update_dialog.dialog.after(2000, lambda: execute_update_script(bat_path))
-                
+
             except Exception as e:
                 update_dialog.complete(False, f"업데이트 스크립트 생성 실패: {str(e)}")
-                
+
         except Exception as e:
             update_dialog.complete(False, f"업데이트 중 오류 발생: {str(e)}")
-    
+
     def execute_update_script(bat_path):
-        """업데이트 스크립트 실행 및 프로그램 종료"""
         try:
             subprocess.Popen(
                 ["cmd", "/c", bat_path],
@@ -1117,10 +1092,8 @@ del "%~f0"
         except Exception as e:
             print(f"스크립트 실행 오류: {e}")
             sys.exit(1)
-        
-    # 별도 스레드에서 업데이트 확인 실행
+
     threading.Thread(target=run_update, daemon=True).start()
-    
     return update_dialog
 
 
