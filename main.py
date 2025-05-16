@@ -479,11 +479,11 @@ class FileManagerGUI:
                                       relief="flat", command=self.check_updates)
         self.update_button.pack(side=tk.LEFT, padx=(0, 5))
 
-        # 테마 전환 버튼 추가
-        self.theme_button = tk.Button(self.button_frame, text="🌙", font=("Malgun Gothic", 9),
-                                     bg=self.theme.current['button_bg'], fg=self.theme.current['button_fg'],
-                                     relief="flat", command=self.toggle_theme)
-        self.theme_button.pack(side=tk.LEFT, padx=(0, 5))
+        # # 테마 전환 버튼 추가
+        # self.theme_button = tk.Button(self.button_frame, text="🌙", font=("Malgun Gothic", 9),
+        #                              bg=self.theme.current['button_bg'], fg=self.theme.current['button_fg'],
+        #                              relief="flat", command=self.toggle_theme)
+        # self.theme_button.pack(side=tk.LEFT, padx=(0, 5))
 
         # 최소화 버튼 추가
         self.min_button = tk.Button(self.button_frame, text="—", font=("Malgun Gothic", 9),
