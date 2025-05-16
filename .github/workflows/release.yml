@@ -74,7 +74,7 @@ jobs:
 
       - name: Build app
         if: env.VERSION_EXISTS == 'false'
-        run: pyinstaller --onefile --clean --noconsole --add-data "version.txt;." main.py
+        run: pyinstaller --onedir --clean --noconsole --add-data "version.txt;." main.py
 
       - name: Create GitHub Release
         if: env.VERSION_EXISTS == 'false'

@@ -1075,7 +1075,7 @@ echo Updating application...
 :LOOP
 tasklist | find /i "{os.path.basename(exe_path)}" >nul
 if not errorlevel 1 (
-    timeout /t 1 >nul
+    timeout /t 2 >nul
     goto LOOP
 )
 
@@ -1087,7 +1087,7 @@ if errorlevel 1 (
     goto END
 )
 
-timeout /t 5 >nul
+timeout /t 3 >nul
 echo Starting updated application...
 start "" "{exe_path}"
 
