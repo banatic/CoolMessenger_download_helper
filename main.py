@@ -1046,27 +1046,22 @@ def check_and_update_with_gui(parent_window):
         
         # 업데이트 배치 스크립트 생성 - 개선된 방식
         temp_dir = tempfile.gettempdir()
-        batch1_path = os.path.join(temp_dir, "batch1.bat")
-        batch2_path = os.path.join(temp_dir, "batch2.bat")
+        batch_path = os.path.join(temp_dir, "update_runner.bat")
 
-            # batch2.bat 내용 생성
-        with open(batch2_path, "w", encoding="utf-8") as f:
+        with open(batch_path, "w", encoding="utf-8") as f:
             f.write(f"""@echo off
-        timeout /t 2 /nobreak >nul
-        del "{exe_path}" /f /q
-        copy "{tmp_exe}" "{exe_path}" /Y
-        start "" "{exe_path}"
-        """)
+    :waitloop
+    tasklist | findstr /I "{os.path.basename(exe_path)}" >nul
+    if not errorlevel 1 (
+        timeout /t 1 >nul
+        goto waitloop
+    )
+    del "{exe_path}" /f /q
+    copy "{tmp_exe}" "{exe_path}" /Y
+    start "" "{exe_path}"
+    """)
 
-            # batch1.bat 내용 생성
-        with open(batch1_path, "w", encoding="utf-8") as f:
-            f.write(f"""@echo off
-        timeout /t 1 /nobreak >nul
-        start "" "{batch2_path}"
-        """)
-
-        # batch1 실행 후 현재 프로세스 종료
-        subprocess.Popen([batch1_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        subprocess.Popen([batch_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
         sys.exit()
 
     # 별도 스레드에서 업데이트 확인 실행
