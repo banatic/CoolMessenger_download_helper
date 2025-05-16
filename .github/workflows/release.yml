@@ -1,38 +1,71 @@
 name: Build, Tag, and Release
 
 on:
-  workflow_dispatch:  # 수동 실행
+  push:
+    branches:
+      - main  # main 브랜치에 푸시될 때 실행
+  workflow_dispatch:  # 수동 실행 옵션도 유지
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  check_version_and_release:
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 전체 히스토리를 가져옴 (태그 비교를 위해 필요)
 
       - name: Read version.txt
         id: read_version
         shell: bash
         run: echo "VERSION=$(cat version.txt)" >> $GITHUB_ENV
-      
 
+      - name: Check if version tag exists
+        id: check_tag
+        shell: bash
+        run: |
+          if git tag -l "v${{ env.VERSION }}" | grep -q "v${{ env.VERSION }}"; then
+            echo "VERSION_EXISTS=true" >> $GITHUB_ENV
+            echo "버전 태그 v${{ env.VERSION }}이 이미 존재합니다."
+          else
+            echo "VERSION_EXISTS=false" >> $GITHUB_ENV
+            echo "버전 태그 v${{ env.VERSION }}은 새로운 버전입니다."
+          fi
+
+      - name: Get previous version
+        id: get_previous_version
+        if: env.VERSION_EXISTS == 'false'
+        shell: bash
+        run: |
+          PREV_VERSION=$(git tag -l "v*" | sort -V | tail -n 1 | sed 's/^v//')
+          if [ -z "$PREV_VERSION" ]; then
+            echo "이전 버전 태그가 없습니다. 첫 릴리스입니다."
+          else
+            echo "이전 버전: $PREV_VERSION, 새 버전: ${{ env.VERSION }}"
+          fi
+
+      # 버전이 변경된 경우에만 아래 단계들을 실행
       - name: Git tag and push
+        if: env.VERSION_EXISTS == 'false'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git tag v${{ env.VERSION }}
           git push origin v${{ env.VERSION }}
+          echo "새 버전 v${{ env.VERSION }} 태그를 생성했습니다."
 
       - name: Set up Python
+        if: env.VERSION_EXISTS == 'false'
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
       - name: Install dependencies
+        if: env.VERSION_EXISTS == 'false'
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
@@ -40,28 +73,16 @@ jobs:
           pip install pyinstaller
 
       - name: Build app
+        if: env.VERSION_EXISTS == 'false'
         run: pyinstaller --onefile --noconsole --add-data "version.txt;." main.py
 
-      - name: Create GitHub Release (manual API call)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          curl -s -X POST https://api.github.com/repos/${{ github.repository }}/releases \
-            -H "Authorization: token $GH_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d @- <<EOF
-          {
-            "tag_name": "v${{ env.VERSION }}",
-            "name": "v${{ env.VERSION }}",
-            "body": "Auto-generated release for version ${{ env.VERSION }}",
-            "draft": false,
-            "prerelease": false
-          }
-          EOF
-
-      - name: Upload EXE to GitHub Release
+      - name: Create GitHub Release
+        if: env.VERSION_EXISTS == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          body: "Auto-generated release for version ${{ env.VERSION }}"
           files: dist/main.exe
+          draft: false
+          prerelease: false
