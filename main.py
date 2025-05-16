@@ -807,144 +807,168 @@ def check_and_update_loop(interval_minutes=5):
         time.sleep(interval_minutes * 60)
 
 
-
-
 class UpdateDialog:
     def __init__(self, parent):
-        self.dialog = tk.Toplevel(parent)
-        self.dialog.title("업데이트")
-        self.dialog.geometry("350x200")
-        self.dialog.resizable(False, False)
-        self.dialog.transient(parent)  # 부모 창에 종속
-        self.dialog.grab_set()  # 모달 대화상자로 설정
-        
-        # 대화상자를 화면 중앙에 배치
-        self.center_window()
-        
-        # 폰트 설정
-        title_font = ("Malgun Gothic", 12, "bold")
-        normal_font = ("Malgun Gothic", 10)
-        
-        # 컨테이너 프레임
-        self.main_frame = tk.Frame(self.dialog, padx=20, pady=20)
-        self.main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # 타이틀 라벨
-        self.title_label = tk.Label(self.main_frame, text="업데이트 도구", font=title_font)
-        self.title_label.pack(pady=(0, 15))
-        
-        # 상태 라벨
-        self.status_frame = tk.Frame(self.main_frame)
-        self.status_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.status_label = tk.Label(self.status_frame, text="업데이트 확인 중...", font=normal_font, anchor="w")
-        self.status_label.pack(fill=tk.X)
-        
-        # 버전 정보 프레임
-        self.version_frame = tk.Frame(self.main_frame)
-        self.version_frame.pack(fill=tk.X, pady=(0, 15))
-        
-        # 진행 상태 바
-        self.progress = ttk.Progressbar(self.main_frame, mode='indeterminate', length=300)
-        self.progress.pack(fill=tk.X, pady=(0, 15))
-        self.progress.start(10)
-        
-        # 버튼 프레임
-        self.button_frame = tk.Frame(self.main_frame)
-        self.button_frame.pack(fill=tk.X)
-        
-        self.cancel_button = tk.Button(self.button_frame, text="취소", command=self.cancel, width=10)
-        self.cancel_button.pack(side=tk.RIGHT)
-        
-        # 취소 플래그
+        self.parent = parent
         self.cancelled = False
         
-        # 대화 상자가 닫힐 때 취소 플래그 설정
-        self.dialog.protocol("WM_DELETE_WINDOW", self.cancel)
-    
-    def center_window(self):
-        """대화상자를 화면 중앙에 배치"""
-        self.dialog.update_idletasks()
+        # 다이얼로그 생성
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("업데이트 확인")
+        self.dialog.geometry("400x250")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
         
-        # 화면 크기 및 위치 계산
-        screen_width = self.dialog.winfo_screenwidth()
-        screen_height = self.dialog.winfo_screenheight()
+        # UI 요소
+        self.frame = ttk.Frame(self.dialog, padding=20)
+        self.frame.pack(fill=tk.BOTH, expand=True)
         
-        size = tuple(int(_) for _ in self.dialog.geometry().split('+')[0].split('x'))
-        x = int((screen_width - size[0]) / 2)
-        y = int((screen_height - size[1]) / 2)
+        self.title_label = ttk.Label(self.frame, text="업데이트 확인 중...", font=("", 12, "bold"))
+        self.title_label.pack(pady=(0, 10))
         
-        self.dialog.geometry("+%d+%d" % (x, y))
+        self.version_frame = ttk.Frame(self.frame)
+        self.version_frame.pack(fill=tk.X, pady=5)
+        
+        # 버전 정보는 초기에 숨김
+        self.current_version_label = ttk.Label(self.version_frame, text="현재 버전: ")
+        self.latest_version_label = ttk.Label(self.version_frame, text="최신 버전: ")
+        
+        self.status_label = ttk.Label(self.frame, text="업데이트 확인 중...")
+        self.status_label.pack(pady=10)
+        
+        self.progress = ttk.Progressbar(self.frame, mode="indeterminate")
+        self.progress.pack(fill=tk.X, pady=10)
+        self.progress.start()
+        
+        # 버튼 프레임
+        self.button_frame = ttk.Frame(self.frame)
+        self.button_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        self.cancel_button = ttk.Button(self.button_frame, text="확인", command=self.on_cancel)
+        self.cancel_button.pack(side=tk.RIGHT)
+        
+        # 닫기 버튼 비활성화 및 프로토콜 설정
+        self.dialog.protocol("WM_DELETE_WINDOW", self.on_cancel)
     
     def set_status(self, text):
         """상태 메시지 업데이트"""
-        self.status_label.config(text=text)
-        self.dialog.update_idletasks()
+        if not self.cancelled:
+            self.status_label.config(text=text)
+            self.dialog.update()
     
-    def set_version_info(self, current_version, latest_version):
+    def set_progress(self, value=None, maximum=None):
+        """진행 상태 업데이트"""
+        if value is not None and maximum is not None:
+            if self.progress["mode"] != "determinate":
+                self.progress.stop()
+                self.progress["mode"] = "determinate"
+            
+            self.progress["maximum"] = maximum
+            self.progress["value"] = value
+        self.dialog.update()
+    
+    def set_version_info(self, current, latest):
         """버전 정보 표시"""
-        for widget in self.version_frame.winfo_children():
-            widget.destroy()
+        self.current_version_label.config(text=f"현재 버전: {current}")
+        self.latest_version_label.config(text=f"최신 버전: {latest}")
         
-        tk.Label(self.version_frame, text=f"현재 버전: {current_version}", anchor="w").pack(fill=tk.X)
-        tk.Label(self.version_frame, text=f"최신 버전: {latest_version}", anchor="w").pack(fill=tk.X)
-        self.dialog.update_idletasks()
-    
-    def set_determinate_progress(self, value=0):
-        """진행 상태바를 결정적 모드로 변경하고 값 설정"""
-        self.progress.stop()
-        self.progress.config(mode='determinate', value=value)
-        self.dialog.update_idletasks()
-    
-    def update_progress(self, value):
-        """진행 상태바 값 업데이트"""
-        self.progress.config(value=value)
-        self.dialog.update_idletasks()
-    
-    def complete(self, success=True, message=None):
-        """업데이트 완료 처리"""
-        self.progress.stop()
+        self.current_version_label.pack(anchor=tk.W, pady=2)
+        self.latest_version_label.pack(anchor=tk.W, pady=2)
         
-        if success:
-            self.set_status(message or "업데이트가 완료되었습니다.")
-            self.cancel_button.config(text="닫기")
-        else:
-            self.set_status(message or "업데이트에 실패했습니다.")
-            self.cancel_button.config(text="닫기")
+        self.dialog.update()
     
-    def cancel(self):
-        """취소 처리"""
-        self.cancelled = True
+    def complete(self, success, message):
+        """업데이트 프로세스 완료"""
+        self.progress.stop()
+        self.progress.pack_forget()
+        
+        # 상태 메시지 업데이트
+        self.status_label.config(text=message)
+        
+        # 버튼 변경
+        self.cancel_button.config(text="확인", command=self.close)
+        
+        self.dialog.update()
+    
+    def close(self):
+        """다이얼로그 닫기"""
         self.dialog.destroy()
+    
+    def on_cancel(self):
+        """취소 버튼 또는 창 닫기"""
+        self.cancelled = True
+        self.set_status("작업 취소 중...")
+        # 취소 버튼 비활성화
+        self.cancel_button.config(state=tk.DISABLED)
+        # 비동기 작업이 취소될 시간 제공
+        self.dialog.after(500, self.close)
 
 
-def download_with_progress(url, dest_path, update_dialog=None):
-    """진행 상태를 표시하며 파일 다운로드"""
+def download_with_progress(url, path, dialog):
+    """진행률 표시와 함께 파일 다운로드"""
     try:
-        with requests.get(url, stream=True) as response:
-            response.raise_for_status()
-            total_size = int(response.headers.get('content-length', 0))
-            
-            if update_dialog:
-                update_dialog.set_determinate_progress(0)
-            
-            with open(dest_path, 'wb') as f:
-                downloaded = 0
-                for chunk in response.iter_content(chunk_size=8192):
-                    if update_dialog and update_dialog.cancelled:
-                        return False
+        response = requests.get(url, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        # 파일 크기 확인
+        total_size = int(response.headers.get('content-length', 0))
+        dialog.set_progress(0, total_size)
+        
+        # 청크 단위로 다운로드하면서 진행률 업데이트
+        downloaded = 0
+        with open(path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if dialog.cancelled:
+                    return False
                     
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        
-                        if update_dialog and total_size:
-                            progress = int((downloaded / total_size) * 100)
-                            update_dialog.update_progress(progress)
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    dialog.set_progress(downloaded, total_size)
+        
         return True
     except Exception as e:
-        print(f"다운로드 실패: {e}")
+        print(f"다운로드 오류: {e}")
         return False
+
+
+def get_resource_path(relative_path):
+    """Get the absolute path to a resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
+def get_local_version():
+    """로컬 버전 정보 확인"""
+    try:
+        # 직접 파일 경로를 사용하는 방식은 PyInstaller에서 문제될 수 있음
+        # 1. 먼저 실행 파일과 같은 디렉토리에서 확인
+        version_file_path = os.path.join(os.path.dirname(sys.executable), "version.txt")
+        if not os.path.exists(version_file_path):
+            # 2. 리소스 경로에서 확인
+            version_file_path = get_resource_path("version.txt")
+        
+        with open(version_file_path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception as e:
+        print(f"[ERROR] Failed to read version.txt: {e}")
+        return None
+
+
+def get_latest_release_info():
+    """GitHub API에서 최신 릴리스 정보 가져오기"""
+    url = f"https://api.github.com/repos/{REPO}/releases/latest"
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    
+    r = requests.get(url, headers=headers, timeout=10)
+    r.raise_for_status()
+    return r.json()
 
 
 def check_and_update_with_gui(parent_window):
@@ -974,21 +998,25 @@ def check_and_update_with_gui(parent_window):
                     return
                 
                 # 업데이트 필요한 경우 - 다운로드 진행
-                asset = next(a for a in release["assets"] if a["name"].endswith(".exe"))
-                download_url = asset["browser_download_url"]
-                
-                # 사용자에게 업데이트 확인
-                update_dialog.cancel_button.config(text="취소")
-                update_dialog.set_status("업데이트를 시작")
-                
-                start_download(download_url)
+                try:
+                    asset = next(a for a in release["assets"] if a["name"].endswith(".exe"))
+                    download_url = asset["browser_download_url"]
+                    
+                    # 사용자에게 업데이트 확인
+                    update_dialog.cancel_button.config(text="취소")
+                    update_dialog.set_status("업데이트를 시작합니다")
+                    
+                    # 다운로드 시작
+                    start_download(download_url)
+                except StopIteration:
+                    update_dialog.complete(False, "다운로드 파일을 찾을 수 없습니다.")
 
             except Exception as e:
-                update_dialog.complete(False, f"업데이트 확인 실패: {e}")
+                update_dialog.complete(False, f"업데이트 확인 실패: {str(e)}")
                 return
         
         except Exception as e:
-            update_dialog.complete(False, f"오류 발생: {e}")
+            update_dialog.complete(False, f"오류 발생: {str(e)}")
     
     def start_download(download_url):
         try:
@@ -999,9 +1027,19 @@ def check_and_update_with_gui(parent_window):
             
             update_dialog.set_status("업데이트 다운로드 중...")
             
-            # 임시 경로에 다운로드
-            exe_path = sys.executable
-            tmp_exe = tempfile.mktemp(suffix=".exe")
+            # 안전한 임시 파일 경로 생성
+            try:
+                # 임시 디렉토리에 고유한 파일명으로 생성
+                temp_dir = tempfile.gettempdir()
+                exe_filename = os.path.basename(sys.executable)
+                tmp_exe = os.path.join(temp_dir, f"update_{exe_filename}")
+                
+                # 파일이 이미 있다면 삭제
+                if os.path.exists(tmp_exe):
+                    os.remove(tmp_exe)
+            except Exception as e:
+                update_dialog.complete(False, f"임시 파일 생성 실패: {str(e)}")
+                return
             
             # 진행 상태와 함께 다운로드
             success = download_with_progress(download_url, tmp_exe, update_dialog)
@@ -1009,77 +1047,87 @@ def check_and_update_with_gui(parent_window):
             if not success or update_dialog.cancelled:
                 if not update_dialog.cancelled:
                     update_dialog.complete(False, "다운로드에 실패했습니다.")
+                # 임시 파일 정리
+                if os.path.exists(tmp_exe):
+                    try:
+                        os.remove(tmp_exe)
+                    except:
+                        pass
                 return
             
             update_dialog.set_status("업데이트 설치 준비 중...")
             
-            # 업데이트 배치 스크립트 생성
-            bat_path = tmp_exe + ".bat"
-            with open(bat_path, "w", encoding="utf-8") as bat:
-                bat.write(f"""@echo off
-timeout /t 1 >nul
-move /y "{tmp_exe}" "{exe_path}"
+            # 원본 실행 파일 경로
+            exe_path = sys.executable
+            
+            # 업데이트 배치 스크립트 생성 - 더 안전한 방식으로
+            try:
+                bat_filename = f"update_{os.getpid()}.bat"
+                bat_path = os.path.join(temp_dir, bat_filename)
+                
+                with open(bat_path, "w", encoding="utf-8") as bat:
+                    # 더 견고한 배치 스크립트 작성
+                    bat.write(f"""@echo off
+echo Waiting for application to close...
+timeout /t 2 >nul
+echo Updating application...
+
+:LOOP
+tasklist | find /i "{os.path.basename(exe_path)}" >nul
+if not errorlevel 1 (
+    timeout /t 1 >nul
+    goto LOOP
+)
+
+echo Replacing application file...
+copy /y "{tmp_exe}" "{exe_path}"
+if errorlevel 1 (
+    echo Update failed! Error code: %errorlevel%
+    pause
+    goto END
+)
+
+echo Starting updated application...
 start "" "{exe_path}"
+
+:END
+del "{tmp_exe}"
 del "%~f0"
 """)
-            
-            update_dialog.set_status("업데이트를 설치하기 위해 프로그램을 재시작합니다...")
-            update_dialog.dialog.after(2000, lambda: subprocess.Popen(["cmd", "/c", bat_path], shell=True) and sys.exit(0))
-            
+                
+                update_dialog.set_status("업데이트를 설치하기 위해 프로그램을 재시작합니다...")
+                # 2초 후 배치 파일 실행 및 프로그램 종료
+                update_dialog.dialog.after(2000, lambda: execute_update_script(bat_path))
+                
+            except Exception as e:
+                update_dialog.complete(False, f"업데이트 스크립트 생성 실패: {str(e)}")
+                
         except Exception as e:
-            update_dialog.complete(False, f"업데이트 중 오류 발생: {e}")
+            update_dialog.complete(False, f"업데이트 중 오류 발생: {str(e)}")
+    
+    def execute_update_script(bat_path):
+        """업데이트 스크립트 실행 및 프로그램 종료"""
+        try:
+            # 숨김 창으로 배치 파일 실행
+            if os.name == 'nt':  # Windows
+                subprocess.Popen(["cmd", "/c", bat_path], 
+                                shell=True, 
+                                creationflags=subprocess.CREATE_NO_WINDOW)
+            else:  # 다른 OS
+                subprocess.Popen(["bash", bat_path])
+            
+            # 애플리케이션 종료
+            sys.exit(0)
+        except Exception as e:
+            print(f"스크립트 실행 오류: {e}")
+            # 오류가 발생해도 종료 시도
+            sys.exit(1)
     
     # 별도 스레드에서 업데이트 확인 실행
     threading.Thread(target=run_update, daemon=True).start()
     
     return update_dialog
 
-def get_resource_path(relative_path):
-    """Get the absolute path to a resource, works for dev and for PyInstaller"""
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
-
-def get_local_version():
-    try:
-        version_file_path = get_resource_path("version.txt")
-        with open(version_file_path, "r", encoding="utf-8") as f:
-            return f.read().strip()
-    except Exception as e:
-        print(f"[ERROR] Failed to read version.txt: {e}")
-        return None
-
-def get_latest_release_info():
-    url = f"https://api.github.com/repos/{REPO}/releases/latest"
-    r = requests.get(url, timeout=5)
-    r.raise_for_status()
-    return r.json()
-
-def download_and_replace_exe(download_url):
-    exe_path = sys.executable
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".exe") as tmp:
-        tmp_exe = tmp.name
-    
-    print("⬇️ Downloading new version...")
-    with requests.get(download_url, stream=True) as res, open(tmp_exe, "wb") as out:
-        shutil.copyfileobj(res.raw, out)
-
-    print("🔄 Preparing replacement script...")
-    bat_path = tmp_exe + ".bat"
-    with open(bat_path, "w", encoding="utf-8") as bat:
-        bat.write(f"""@echo off
-timeout /t 1 >nul
-rename "{exe_path}" "old.exe"
-move /y "{tmp_exe}" "{exe_path}"
-start "" "{exe_path}"
-del old.exe
-del "%~f0"
-""")
-        
 
 def check_and_update():
     """기존 업데이트 함수 - 백그라운드 자동 업데이트용으로 유지"""
@@ -1100,7 +1148,9 @@ def check_and_update():
         # Get asset URL (assuming .exe file)
         asset = next(a for a in release["assets"] if a["name"].endswith(".exe"))
         download_url = asset["browser_download_url"]
-        download_and_replace_exe(download_url)
+        
+        # 직접 교체하는 대신 GUI 업데이트 시작
+        print("🔄 Update available. Please use the GUI update function.")
 
     except Exception as e:
         print(f"❌ Update check failed: {e}")
