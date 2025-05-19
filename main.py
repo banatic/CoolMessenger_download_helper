@@ -1081,6 +1081,9 @@ def check_and_update_with_gui(parent_window):
     echo Starting new exe...
     start "" "{exe_path}"
 
+    echo Cleaning up...
+    rmdir /s /q "{mei_backup}" >nul 2>&1
+
     del "%~f0"
     """
 
