@@ -1065,10 +1065,9 @@ def check_and_update_with_gui(parent_window):
         latest_version = release["tag_name"].lstrip("v")
 
         
-        version_path = os.path.join(mei_backup, "version.txt")
-        with open(version_path, "w", encoding="utf-8") as f:
-            f.write(latest_version)
-            f.close()
+        # version_path = os.path.join(mei_backup, "version.txt")
+        # with open(version_path, "w", encoding="utf-8") as f:
+        #     f.write(latest_version)
 
         # 배치 파일 경로
         bat_path = os.path.join(tempfile.gettempdir(), "update_restore_run.bat")
@@ -1083,6 +1082,9 @@ def check_and_update_with_gui(parent_window):
     echo Restoring {mei_name}...
     rmdir /s /q "{mei_original_path}" >nul 2>&1
     xcopy /e /i /y "{mei_backup}" "{mei_original_path}"
+
+    echo Writing version.txt...
+    echo {latest_version} > "{os.path.join(mei_backup, "version.txt")}"
 
     echo Replacing exe...
     del "{exe_path}" >nul 2>&1
