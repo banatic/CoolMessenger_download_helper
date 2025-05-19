@@ -1039,62 +1039,57 @@ def check_and_update_with_gui(parent_window):
             return
         
         update_dialog.set_status("업데이트 설치 준비 중...")
-        
-        # 원본 실행 파일 경로
+        ## 업데이트 ##
         exe_path = sys.executable
         current_pid = os.getpid()
-        import uuid
-        
-        # Generate a unique task name to avoid conflicts
-        task_name = f"AppUpdate_{uuid.uuid4().hex[:8]}"
-        
-        # Create a batch file for the update process
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.bat') as f:
-            batch_file = f.name
-        
-        # Get current time and add 1 minute to ensure the task runs immediately
-        current_time = time.localtime()
-        minute = (current_time.tm_min + 1) % 60
-        hour = current_time.tm_hour + ((current_time.tm_min + 1) // 60)
-        hour = hour % 24
-        
-        scheduled_time = f"{hour:02d}:{minute:02d}"
-        
-        with open(batch_file, 'w', encoding='utf-8') as f:
-            f.write(f'''@echo off
-    echo Waiting for application to exit...
-    taskkill /F /PID {current_pid} > nul 2>&1
-    timeout /t 5 /nobreak > nul
 
-    echo Updating application...
-    copy /Y "{tmp_exe}" "{exe_path}" > nul
+        mei_path = getattr(sys, "_MEIPASS", None)
+        if mei_path is None or not os.path.isdir(mei_path):
+            print("Not running from PyInstaller context. Aborting.")
+            return
 
-    echo Starting updated application...
+        # 백업할 경로
+        mei_backup = os.path.join(tempfile.gettempdir(), "_MEI_backup")
+        if os.path.exists(mei_backup):
+            shutil.rmtree(mei_backup)
+        shutil.copytree(mei_path, mei_backup)
+
+        print(f"Backed up MEI folder from:\n  {mei_path}\nto:\n  {mei_backup}")
+
+        # 원래 MEI 폴더 이름만 추출 (_MEIxxxxx)
+        mei_name = os.path.basename(mei_path)
+        mei_original_path = os.path.join(tempfile.gettempdir(), mei_name)
+
+        # 배치 파일 경로
+        bat_path = os.path.join(tempfile.gettempdir(), "update_restore_run.bat")
+
+        bat_script = f"""@echo off
+    echo Waiting for PID {current_pid} to exit...
+    timeout /t 2 >nul
+    taskkill /PID {current_pid} /F
+
+    timeout /t 2 >nul
+
+    echo Restoring {mei_name}...
+    rmdir /s /q "{mei_original_path}" >nul 2>&1
+    xcopy /e /i /y "{mei_backup}" "{mei_original_path}"
+
+    echo Replacing exe...
+    del "{exe_path}" >nul 2>&1
+    copy "{tmp_exe}" "{exe_path}" >nul
+
+    echo Starting new exe...
     start "" "{exe_path}"
 
-    echo Cleaning up...
-    schtasks /Delete /TN "{task_name}" /F > nul 2>&1
-    del "{tmp_exe}" > nul 2>&1
     del "%~f0"
-    ''')
-        
-        # Create a Windows scheduled task to run at the next minute
-        # The /RU "SYSTEM" runs the task with SYSTEM privileges, which can help avoid some permission issues
-        cmd = f'schtasks /Create /TN "{task_name}" /TR "{batch_file}" /SC ONCE /ST {scheduled_time} /RU "SYSTEM" /F'
-        subprocess.run(cmd, shell=True, check=True)
-        
-        # Force the task to run now instead of waiting for the scheduled time
-        subprocess.Popen(f'schtasks /Run /TN "{task_name}"', shell=True)
-        
-        # Display update message
-        update_dialog.set_status("업데이트가 진행 중입니다. 프로그램이 곧 재시작됩니다...")
-        
-        # Give the task scheduler a moment to register the task
-        time.sleep(1)
-        
-        # Exit the application
-        os._exit(0)
+    """
 
+        with open(bat_path, "w", encoding="utf-8") as f:
+            f.write(bat_script)
+
+        print(f"Batch script written to:\n  {bat_path}")
+        subprocess.Popen(["cmd", "/c", bat_path], creationflags=subprocess.CREATE_NO_WINDOW)
+        sys.exit()
 
     # 별도 스레드에서 업데이트 확인 실행
     threading.Thread(target=run_update, daemon=True).start()
