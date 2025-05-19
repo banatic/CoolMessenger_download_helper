@@ -493,9 +493,9 @@ class FileManagerGUI:
         self.min_button.pack(side=tk.LEFT, padx=(0, 5))
 
         # 닫기 버튼 추가
-        self.close_button = tk.Button(self.button_frame, text="✕", font=("Malgun Gothic", 9),
-                                     bg="#D32F2F", fg="white", relief="flat", command=self.window.quit)
-        self.close_button.pack(side=tk.LEFT)
+        #self.close_button = tk.Button(self.button_frame, text="✕", font=("Malgun Gothic", 9),
+        #                             bg="#D32F2F", fg="white", relief="flat", command=self.window.quit)
+        #self.close_button.pack(side=tk.LEFT)
 
         self.separator = ttk.Separator(self.window, orient='horizontal')
         self.separator.pack(fill=tk.X, padx=10)
