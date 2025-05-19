@@ -1065,9 +1065,10 @@ def check_and_update_with_gui(parent_window):
         latest_version = release["tag_name"].lstrip("v")
 
         
-        version_path = os.path.join(getattr(sys, "_MEIPASS", None), "version.txt")
+        version_path = os.path.join(mei_backup, "version.txt")
         with open(version_path, "w", encoding="utf-8") as f:
             f.write(latest_version)
+            f.close()
 
         # 배치 파일 경로
         bat_path = os.path.join(tempfile.gettempdir(), "update_restore_run.bat")
