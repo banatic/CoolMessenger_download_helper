@@ -76,13 +76,21 @@ jobs:
         if: env.VERSION_EXISTS == 'false'
         run: pyinstaller --onefile --noconsole --add-data "version.txt;." main.py
 
+      - name: Get latest commit message
+        if: env.VERSION_EXISTS == 'false'
+        id: get_commit_msg
+        shell: bash
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         if: env.VERSION_EXISTS == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
           name: v${{ env.VERSION }}
-          body: "Auto-generated release for version ${{ env.VERSION }}"
+          body: ${{ steps.get_commit_msg.outputs.commit_msg }}
           files: dist/main.exe
           draft: false
           prerelease: false

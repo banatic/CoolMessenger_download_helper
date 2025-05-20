@@ -9,11 +9,9 @@ import time
 import re
 import winreg
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 from datetime import datetime
 import threading
-from PIL import Image, ImageTk
 import mimetypes
 import math
 import sys
@@ -1131,7 +1129,6 @@ def check_and_update():
         asset = next(a for a in release["assets"] if a["name"].endswith(".exe"))
         download_url = asset["browser_download_url"]
         
-        # 직접 교체하는 대신 GUI 업데이트 시작
         print("🔄 Update available. Please use the GUI update function.")
 
     except Exception as e:

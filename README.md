@@ -1,4 +1,21 @@
-# 쿨메신저 파일 자동 다운로드 및 확인 프로그램
-윈도우용 쿨메신저에서 저장되지 않은 파일이 감지되면 자동으로 저장 버튼을 클릭해주는 유틸리티
+# CoolMessenger Add-on (Windows)
+This is a simple utility that enhances CoolMessenger's file handling experience.
+
+## Features
+Automatically downloads attached files when a message window opens.
+
+Adds a floating GUI panel to the side of the message window.
+You can easily open downloaded files again without redownloading them.
 
 ![Image](https://github.com/user-attachments/assets/106354fc-fcb4-4f1c-bb43-56ca17d6bb4c)
+
+A precompiled binary (`main.exe`) is available in the Releases section.
+
+## Add to Startup
+To automatically run this utility on Windows startup:
+
+Download `main.exe` from the Releases pagge.
+
+Press `Win + R` and type `shell:startup`, then hit Enter.
+
+Move the downloaded `main.exe` file into the opened Startup folder.
